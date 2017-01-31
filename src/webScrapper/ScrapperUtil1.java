@@ -14,6 +14,8 @@ import java.io.IOException;
 import java.net.MalformedURLException;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
@@ -33,6 +35,7 @@ import org.openqa.selenium.support.ui.WebDriverWait;
 import com.gargoylesoftware.htmlunit.FailingHttpStatusCodeException;
 import com.gargoylesoftware.htmlunit.WebClient;
 import com.gargoylesoftware.htmlunit.html.HtmlPage;
+import com.sun.xml.internal.ws.client.sei.ResponseBuilder.Body;
 import com.thoughtworks.selenium.webdriven.commands.WaitForCondition;
 
 
@@ -53,7 +56,13 @@ public class ScrapperUtil1 {
         WebElement element=null;
         Boolean isPresent = d.findElements(By.xpath(".//*[@id='content']/div[1]/div[3]/p/span[1]/span")).size() > 0;
         if(isPresent){
-        element = d.findElement(By.xpath(".//*[@id='content']/div[1]/div[3]/p/span[1]/span"));	
+        	element = d.findElement(By.xpath(".//*[@id='content']/div[1]/div[3]/p/span[2]"));
+        	if (element.getText().contains("Amazon")){
+        		element = d.findElement(By.xpath(".//*[@id='content']/div[1]/div[3]/p/span[1]/span"));
+        	}else{
+        		return "Not in Stock";        		
+        	}
+//        	element = d.findElement(By.xpath(".//*[@id='content']/div[1]/div[3]/p/span[1]/span"));	
         }else if(d.findElements(By.className("green")).size()>0){
         	element=d.findElement(By.className("green"));
         	//return "";
@@ -79,9 +88,9 @@ public class ScrapperUtil1 {
 
 	    return randomNum;
 	}
-	public static String fetchGoogleShopping(WebDriver d, String searchStr )
+	public static String fetchGoogleShopping(WebDriver d, String searchStr,boolean flag )
 	{
-		
+		try{
 //		File file = new File("phantomjs.exe");				
 //        System.setProperty("phantomjs.binary.path", file.getAbsolutePath());		
 //        WebDriver d = new PhantomJSDriver();
@@ -103,29 +112,35 @@ public class ScrapperUtil1 {
 		                 "Mozilla/5.0 (compatible; MSIE 10.0; Windows NT 7.0; InfoPath.3; .NET CLR 3.1.40767; Trident/6.0; en-IN)",
 		                 "Mozilla/5.0 (Windows; U; MSIE 9.0; WIndows NT 9.0; en-US))",
 		                 "Mozilla/5.0 (Windows; U; MSIE 7.0; Windows NT 6.0; en-US)",
-		                 "Mozilla/5.0 (Windows; U; MSIE 6.0; Windows NT 5.1; SV1; .NET CLR 2.0.50727)"};
+		                 "Mozilla/5.0 (Windows; U; MSIE 6.0; Windows NT 5.1; SV1; .NET CLR 2.0.50727)",
+		                 "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_3) AppleWebKit/537.75.14 (KHTML, like Gecko) Version/7.0.3 Safari/7046A194A",
+		                 "Mozilla/5.0 (Windows NT 5.2; RW; rv:7.0a1) Gecko/20091211 SeaMonkey/9.23a1pre",
+		                 "Mozilla/4.0 (compatible; MSIE 8.0; Windows NT 6.1; Trident/4.0; Avant Browser; SLCC2; .NET CLR 2.0.50727; .NET CLR 3.5.30729; .NET CLR 3.0.30729; Media Center PC 6.0)"};
 		
 		String userAgent = uaList[randInt(0, uaList.length-1)];
 		System.setProperty("phantomjs.page.settings.userAgent", userAgent);
 		
 		//https://www.google.co.uk/search?sclient=psy-ab&site=&source=hp&btnG=Search&tbm=shop&q=Dewalt+DCD771C2
 //        d.get("https://www.google.com/?q="+searchStr);
-        d.get("https://www.google.com/search?sclient=psy-ab&site=&source=hp&btnG=Search&tbm=shop&q="+searchStr.replaceAll(" ", "+"));
+//        d.get("https://www.google.com/search?sclient=psy-ab&site=&source=hp&btnG=Search&tbm=shop&q="+searchStr.replaceAll(" ", "+"));
+        d.get("https://www.google.com/search?hl=en&output=search&gws_rd=ssl&tbs=vw:l&tbm=shop&q="+searchStr.replaceAll(" ", "+"));
         //d.findElement(By.xpath(".//[@title='Search'")).sendKeys(searchStr);
         //d.switchTo().window(null);
 //		WebDriverWait wait = new WebDriverWait(d, 30);
 //		wait.until(ExpectedConditions.presenceOfElementLocated(By.id("lst-ib")));
         //d.findElement(By.id("q")).sendKeys(Keys.ENTER);
         
-		
-//        try {
-//			TimeUnit.SECONDS.sleep(randInt(1000, 10000));
-//		} catch (InterruptedException e) {
-//			// TODO Auto-generated catch block
-//			e.printStackTrace();
-//		}
-//      
-        String res= Jsoup.parse(d.getPageSource()).body().text();
+		if (flag){
+	        try {
+				TimeUnit.SECONDS.sleep(randInt(10, 100));
+			} catch (InterruptedException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+
+		}
+		Document doc = Jsoup.parse(d.getPageSource());
+        String res= doc.body().text();
         //d.findElement(By.id("tsf")).submit();
         //*[@id='rhs_block']/table/tbody/tr/td/div/div[2]/div[2]/table/tbody/tr[1]/td[1]/div/div[2]/b
         //*[@id='tvcap']/div[1]/div/div[2]/div[1]/div[1]/div[1]/div[2]/div[2]/b
@@ -147,7 +162,42 @@ public class ScrapperUtil1 {
 //        System.out.println("Page URL is: " + d.manage().ime().getActiveEngine());
 //        d.close();
 //        d.quit();
-        return res;
+        System.out.println(res);
+        res=res.replaceAll(",", "");
+        Pattern p = Pattern.compile("(\\$).\\d*\\.\\d{2}");
+        String[] priceList = new String[20];
+        int i=0;
+		if (res.contains("sponsored")){
+			
+			res = res.substring(res.indexOf("sponsored"));
+			Matcher m = p.matcher(res);
+			while (m.find()) {
+			    res = m.group(0);
+				priceList[i]=m.group(0);
+			    // s now contains "BAR"
+				
+			    break;
+//			    i++;
+			}
+//				if(i>1){
+//					//res=priceList[1];
+//					if (res.contains(priceList[0]+" from")){
+//						res=priceList[1];
+//					}else{
+//						res=priceList[0];
+//					}
+//				}else{
+//					res=priceList[0];
+//				}
+				
+			return res;
+        }else{
+        	return "Not Found!";
+        }
+		
+		}catch(NullPointerException | StringIndexOutOfBoundsException e){
+			return "Invalid search term!";
+		}
         
 	}
 	public static void waitForFrame(WebDriver driver) {
@@ -178,7 +228,7 @@ public class ScrapperUtil1 {
 		   }   
 		  }
 		 }
-	public static String fetchGoogleAds(WebDriver d, String searchStr )
+	public static String fetchGoogleAds(WebDriver d, String searchStr, boolean flag)
 	{
 	try{
 		
@@ -207,31 +257,36 @@ public class ScrapperUtil1 {
 		                 "Mozilla/5.0 (compatible; MSIE 10.0; Windows NT 7.0; InfoPath.3; .NET CLR 3.1.40767; Trident/6.0; en-IN)",
 		                 "Mozilla/5.0 (Windows; U; MSIE 9.0; WIndows NT 9.0; en-US))",
 		                 "Mozilla/5.0 (Windows; U; MSIE 7.0; Windows NT 6.0; en-US)",
-		                 "Mozilla/5.0 (Windows; U; MSIE 6.0; Windows NT 5.1; SV1; .NET CLR 2.0.50727)"};
+		                 "Mozilla/5.0 (Windows; U; MSIE 6.0; Windows NT 5.1; SV1; .NET CLR 2.0.50727)",
+		                 "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_3) AppleWebKit/537.75.14 (KHTML, like Gecko) Version/7.0.3 Safari/7046A194A",
+		                 "Mozilla/5.0 (Windows NT 5.2; RW; rv:7.0a1) Gecko/20091211 SeaMonkey/9.23a1pre",
+		                 "Mozilla/4.0 (compatible; MSIE 8.0; Windows NT 6.1; Trident/4.0; Avant Browser; SLCC2; .NET CLR 2.0.50727; .NET CLR 3.5.30729; .NET CLR 3.0.30729; Media Center PC 6.0)"};
 		
 		String userAgent = uaList[randInt(0, uaList.length-1)];
 		System.setProperty("phantomjs.page.settings.userAgent", userAgent);
 //		File file = new File("gstest.html");
-		d.manage().timeouts().implicitlyWait(10, TimeUnit.SECONDS);
+		//d.manage().timeouts().implicitlyWait(10, TimeUnit.SECONDS);
 		//"https://google-developers.appspot.com/adsense-for-shopping/docs/sample"
-		if (searchStr.length()==0){
-			return "Invalid Search term";
+		if (searchStr==null||searchStr.length()==0){
+			return "Search term is Blank!";
 		}
 		d.get("https://www.google.co.in/#q="+searchStr.replaceAll(" ", "+"));
 //		checkPageIsReady(d);
 //		synchronized (d){
 //			d.wait(5);
 //		}
-//        try {
-//			TimeUnit.SECONDS.sleep(randInt(10, 100));
-//		} catch (InterruptedException e) {
-//			// TODO Auto-generated catch block
-//			e.printStackTrace();
-//		}
+		if (flag){
+	        try {
+				TimeUnit.SECONDS.sleep(randInt(5,15));
+			} catch (InterruptedException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+		}
 
 		Document doc = Jsoup.parse(d.getPageSource());
 //		String res = d.getPageSource().toString().replaceAll("\\<.*?>","");
-		String res = doc.text();
+		String res = doc.text().toLowerCase();
 		//res.substring(arg0)
 		//waitForFrame(d);
 		//checkPageIsReady(d);
@@ -244,15 +299,38 @@ public class ScrapperUtil1 {
 		//html body div#adBlock div div#e1.qc_.c_ div.tc_ div#e5 div.vc_ span.i_
 		//System.out.println(d.findElement(By.id("master-1")).getText());
 		//WebElement ele = d.findElement(By.xpath("//*[@id='tvcap']/div[1]/div/div[2]/div[1]/div[1]/div[1]/div[2]/div[2]/b"));
-		if (res.length()>0||res.contains("Sponsored")){
+		Pattern p = Pattern.compile("(\\$|\\£|\\₹).\\d*\\.\\d{2}");
+		//System.out.println(res);
+		String subres="";
+		if (res.contains("sponsor")){
 			
-			res = res.substring(res.indexOf("Sponsored"),res.indexOf(".00")+3);
-			res = res.substring(res.indexOf(searchStr), res.indexOf(".00")+3).replaceAll(searchStr, "").replaceAll("[^\\d.,]", "");
-			res=res.replaceAll("[.*\\d]", "");
-			return res;
+			subres = res.substring(res.indexOf("sponsor"));
+			subres=subres.replaceAll(",", "");
+			Matcher m = p.matcher(subres);
+			while (m.find()) {
+			    subres = m.group(0);
+			    // s now contains "BAR"
+			}
+//			res = res.substring(res.indexOf(searchStr), res.indexOf(".00")+3).replaceAll(searchStr, "").replaceAll("[^\\d.,]", "");
+//			res=res.replaceAll("[.*\\d]", "");
+			return subres;
 		}
-		return "Not Found!";
-		}catch(NullPointerException e){
+		else{
+			res= res.replaceAll(",", "");
+			Matcher m = p.matcher(res);
+			while (m.find()) {
+			    subres = m.group(0);
+			    // s now contains "BAR"
+			}
+			if (subres.length()==0){
+				return "Not Found!";
+			}else{
+				return subres;
+			}
+			
+		}
+		}catch(NullPointerException|StringIndexOutOfBoundsException e){
+			e.printStackTrace();
 			return "Invalid Search term";
 		}
 	}
@@ -291,11 +369,11 @@ public class ScrapperUtil1 {
 //		InternetExplorerDriver  ieDriver = new InternetExplorerDriver(capabilities);
 //        ieDriver.manage().timeouts().implicitlyWait(10, TimeUnit.SECONDS);
         
-        String s=fetchAmazon(driver, "B001C4CEOS");
+        String s=fetchAmazon(driver, "B00302KB5O");
         System.out.println(s);
-        s=fetchGoogleAds(driver,"Dewalt DCD771C2");
+        s=fetchGoogleAds(driver,"honey can do KCH-06145",false);
         System.out.println(s);
-        s=fetchGoogleShopping(driver,"Dewalt DCD771C2");
+        s=fetchGoogleShopping(driver,"Tingley Rubber O56007",false);
         System.out.println(s);
         
         driver.close();

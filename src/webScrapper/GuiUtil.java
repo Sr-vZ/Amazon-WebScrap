@@ -5,26 +5,32 @@ package webScrapper;
 
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.file.Paths;
+import java.util.concurrent.TimeUnit;
 
 import org.apache.poi.hssf.util.CellReference;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.xssf.usermodel.examples.CreateCell;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.phantomjs.PhantomJSDriver;
 
 import com.gargoylesoftware.htmlunit.javascript.host.media.webkitAudioContext;
 
 import javafx.application.Application;
+import javafx.application.Platform;
+import javafx.css.ParsedValue;
 import javafx.geometry.HPos;
 import javafx.geometry.Insets;
 import javafx.scene.Scene;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Alert.AlertType;
 import javafx.scene.control.Button;
+import javafx.scene.control.CheckBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListView;
 import javafx.scene.control.ProgressBar;
@@ -52,6 +58,8 @@ public class GuiUtil extends Application {
 	 * @param args
 	 */
     static WebDriver AmazonDriver,GoogleDriver;
+    static long startTime,endTime;
+    static boolean googleFlag=true;
     @Override
     public void start(Stage stage) {
 
@@ -90,6 +98,9 @@ public class GuiUtil extends Application {
         Label lbl = new Label("Select File Location:");
         TextField field = new TextField();
         field.setEditable(false);
+//        Label gFlag = new Label("Evade google block");
+        CheckBox gCheckBox = new CheckBox("Evade google block");
+        gCheckBox.setSelected(googleFlag);
         
         ProgressBar pb = new ProgressBar();
         pb.setVisible(false);
@@ -106,6 +117,9 @@ public class GuiUtil extends Application {
         
         root.add(pb,2,3 );
         root.add(sts, 0,3);
+        
+//        root.add(gFlag, 0, 6);
+        root.add(gCheckBox, 2, 5);
         //root.add(selectFile, 3, 3);
         
         Scene scene = new Scene(root,350, 150);
@@ -113,7 +127,14 @@ public class GuiUtil extends Application {
         stage.setTitle("Web Scrapper Utility");
         stage.setScene(scene);
         stage.show();
-    
+        
+        gCheckBox.setOnAction(e->{
+        	if (gCheckBox.isSelected()){
+        		googleFlag=true;
+        	}else{
+        		googleFlag=false;
+        	}
+        });
         selectFile.setOnAction(e->{
         	String userDirectoryString = Paths.get(".").toAbsolutePath().normalize().toString();//System.getProperty("user.dir");
         	File userDirectory = new File(userDirectoryString);
@@ -137,13 +158,17 @@ public class GuiUtil extends Application {
         });
         
         okBtn.setOnAction(e->{
+        	selectFile.setDisable(true);
+        	okBtn.setDisable(true);
+        	gCheckBox.setDisable(true);
+        	
         	if (field.getText()==null||field.getText().isEmpty()){
         		//aw.setAlertType(AlertType.ERROR);
         		aw.setContentText("No Input file selected! Select an Excel file.");
         		aw.showAndWait();
         	}
         	try {
-        	
+        	startTime = System.currentTimeMillis();
         	pb.setProgress(0);
     		String excelFilePath = field.getText();
    		 	FileInputStream inputStream;
@@ -157,10 +182,12 @@ public class GuiUtil extends Application {
 //            System.setProperty("phantomjs.binary.path", file1.getAbsolutePath());		
 //            WebDriver driver = new PhantomJSDriver();
             int n = firstSheet.getPhysicalNumberOfRows();
+            System.out.println(n);
             String[] azList =new String[n];
             String[] gsList =new String[n];
             String[] azPrice =new String[n];
             String[] gsPrice =new String[n];
+            String[] gsPrice1 =new String[n];
             
     	    for (int i =1;i<n;i++){
     	    	Row row = firstSheet.getRow(i);
@@ -168,7 +195,7 @@ public class GuiUtil extends Application {
     	    	//System.out.println(firstSheet.getRow(i).getCell(CellReference.convertColStringToIndex("A")));
     	    	azList[i] = firstSheet.getRow(i).getCell(CellReference.convertColStringToIndex("A")).toString();
     	    	gsList[i] = firstSheet.getRow(i).getCell(CellReference.convertColStringToIndex("B")).toString();
-    	    	System.out.println(azList[i]+gsList[i]);
+    	    	System.out.println(azList[i]+" "+gsList[i]);
 //    	    	Cell cell = firstSheet.getRow(i).getCell(CellReference.convertColStringToIndex("C"));
 //    	    	
 //    	    	if(cell == null){
@@ -183,9 +210,10 @@ public class GuiUtil extends Application {
 			Thread fetchAmazonTask = new Thread(new Runnable()  {
 			    @Override
 			    public void run() {
-			    	
+			String tmp;
+			float ratio=0;
 			//int j=0;    
-    	    for (int i=1;i<n-1;i++){
+    	    for (int i=1;i<n;i++){
     	    	final float counter = i*1.0f;
     	    	new Thread(new Runnable() {
                 	
@@ -194,12 +222,12 @@ public class GuiUtil extends Application {
                         
                         javafx.application.Platform.runLater(new Runnable() {
                             @Override public void run() {
-                            	Double p=(double)(counter/(n-1));
+                            	Double p=(double)(counter/(n));
                             	pb.setVisible(true);
                                 pb.setProgress(p);
-                                sts.setText("Fetching data "+(int)counter+" of "+(n-1));
+                                sts.setText("Fetching data "+(int)counter+" of "+(n));
                                 if (p>=1){
-                                	sts.setText("Complete!");
+                                	sts.setText("Fetch Complete!");
                                 	
                                 }
                             }
@@ -219,27 +247,64 @@ public class GuiUtil extends Application {
 //    	    	//cell1.setCellValue(ScrapperUtil1.fetchGoogleAds(GoogleDriver, gsList[j]));
 //    	    	}
     	    	azPrice[i]=ScrapperUtil1.fetchAmazon(AmazonDriver, azList[i]);
-    	    	gsPrice[i]=ScrapperUtil1.fetchGoogleAds(GoogleDriver, gsList[i]);
-    	    	System.out.println(i+" "+azPrice[i]+" "+gsPrice[i]);
+    	    	gsPrice[i]=ScrapperUtil1.fetchGoogleShopping(GoogleDriver, gsList[i],googleFlag);
+//    	    	tmp=gsPrice[i].replaceAll("[^0-9]","");
+//    	    	try{
+//        	    	if(Integer.parseInt(tmp)>0){
+//        	    		ratio=Float.parseFloat(gsPrice[i].replaceAll("[^0-9]",""))/Float.parseFloat(azPrice[i].replaceAll("[^0-9]",""));
+//        	    		if (ratio>1.5){
+//        	    			gsPrice[i]="Not found!";
+//        	    		}
+//    				}
+//    	    	}catch (NumberFormatException e) {
+//					// TODO: handle exception
+//    	    		gsPrice[i]="Not found!";
+//				}
+
+    	    	//gsPrice1[i]=ScrapperUtil1.fetchGoogleShopping(GoogleDriver, gsList[i]);
+    	    	System.out.println(i+" "+azPrice[i]+" "+gsPrice[i]+" "+ratio);
     	    }
     	    try{
     	    	
     	    
     	   // workbook.close();
-    	    for (int i=1;i<n-1;i++){
+    	    for (int i=1;i<azPrice.length;i++){
     	    	Row row = firstSheet.getRow(i);
     	    	if(row!=null){
     	    	Cell cell = firstSheet.getRow(i).getCell(CellReference.convertColStringToIndex("C"));
     	    	Cell cell1 = firstSheet.getRow(i).getCell(CellReference.convertColStringToIndex("D"));
+//    	    	Cell cell2 = firstSheet.getRow(i).getCell(CellReference.convertColStringToIndex("E"));
     	    	if(cell == null){
+    	    		cell = firstSheet.getRow(i).createCell(CellReference.convertColStringToIndex("C"));
     	    	    cell = firstSheet.getRow(i).createCell(CellReference.convertColStringToIndex("C"));
     	    	    //cell1 = firstSheet.getRow(i).getCell(CellReference.convertColStringToIndex("D"));
     	    	}
     	    	if(cell1 == null){
+    	    		
+    	    		cell1 = firstSheet.getRow(i).createCell(CellReference.convertColStringToIndex("D"));
     	    		cell1 = firstSheet.getRow(i).getCell(CellReference.convertColStringToIndex("D"));
     	    	}
-    	    	cell.setCellValue(azPrice[i]);
+//    	    	if(cell2 == null){
+//    	    		
+//    	    		cell2 = firstSheet.getRow(i).createCell(CellReference.convertColStringToIndex("E"));
+//    	    		cell2 = firstSheet.getRow(i).getCell(CellReference.convertColStringToIndex("E"));
+//    	    	}
+    	    	System.out.println(i+" "+azPrice[i]+" "+gsPrice[i]);
     	    	cell1.setCellValue(gsPrice[i]);
+    	    	cell.setCellValue(azPrice[i]);
+//    	    	cell2.setCellValue(gsPrice1[i]);
+    	    	final int counter = i;
+    	    	Platform.runLater(new Runnable() {
+					
+					@Override
+					public void run() {
+						// TODO Auto-generated method stub
+						sts.setText("Writing to file...");
+						double p = (counter/gsPrice.length)*1.0d;
+						pb.setProgress(p);
+					}
+				});
+    	    	
     	    	}	
     	    }
     	    inputStream.close();		
@@ -248,8 +313,35 @@ public class GuiUtil extends Application {
     	    workbook.write(outputStream);
     	    outputStream.close();
     	    workbook.close();
-    	    }catch(IOException e){
-    	    	e.printStackTrace();
+    	    Platform.runLater(new Runnable() {
+				
+				@Override
+				public void run() {
+					// TODO Auto-generated method stub
+					sts.setText("Complete!");
+					pb.setVisible(false);
+					endTime = System.currentTimeMillis();
+					System.out.println("Elapsed time: "+(endTime-startTime)+" in ms");
+					selectFile.setDisable(false);
+		        	okBtn.setDisable(false);
+		        	gCheckBox.setDisable(false);
+				}
+			});
+    	    
+    	    }catch(IOException|NullPointerException e){
+    	    	
+    	    	FileOutputStream outputStream;
+				try {
+					outputStream = new FileOutputStream(new File(excelFilePath));
+	    	    	workbook.write(outputStream);
+	        	    outputStream.close();
+	        	    workbook.close();
+				} catch (IOException e1) {
+					// TODO Auto-generated catch block
+					e1.printStackTrace();
+				}
+
+        	    e.printStackTrace();
     	    }
     	    
 			}
@@ -257,7 +349,7 @@ public class GuiUtil extends Application {
 			fetchAmazonTask.start();
 			
     	    
-        	} catch (IOException e1) {
+        	} catch (IOException|NullPointerException e1) {
 				// TODO Auto-generated catch block
 				e1.printStackTrace();
 			}
